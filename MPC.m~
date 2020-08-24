@@ -16,11 +16,10 @@ Bs = [plant_ss.B;1]
 Cs = [plant_ss.C 0]
 
 %rozsireni o pozadovanou hodnotu
-Ae = [[As [0;0;0]]; [0 0 0 1]] % ref hodnota je konstantni
-Be = [Bs;0] %neovlivnena vstupem
-Ce = [Cs -1] % vystupni matice pro regulacni odchylku
+Ae = [[As [0;0;0]]; [0 0 0 1]] %konstantni d
+Be = [Bs;0]
+Ce = [Cs -1]
 
-C = [Cs 0] %vystupni matice pro regulovanou velicinu
 D = plant_ss.D
 
 % zdrojovy pdf tvrdi, ze v pravym dolnim rohu A ma byt 1 a ze posledni
@@ -35,10 +34,10 @@ lb = -100*ones(nc,1)
 
 % weights
 yW = 1 %output weight
-uW = 1 %input weight
+uW = 0.01 %input weight
 
-Q = yW*eye(size(Ce,1))
-R = uW*eye(size(Be,2))
+Q = yW*eye(size(C,1))
+R = uW*eye(size(B,2))
 cQ = cell(1,np)
 cR = cell(1,nc)
 cQ(:) = {Q}
@@ -51,7 +50,7 @@ R = blkdiag(cR{:})
 K = eye(nc)-triu(ones(nc),-1)+triu(ones(nc),0)
 M = zeros(nc,1)
 M(1) = -1
-L = [0 0 0 0] 
+L = [0 0 0 1]
 
 
 % prediction matrices for regulator problem
@@ -63,13 +62,13 @@ for r = 1:np
     Hx_row = []
     H_row = []
     for c = 1:np
-        Hx_row = [Hx_row mat_pow(Ae, r-c)*Be]
-        H_row = [H_row Ce*mat_pow(Ae,r-c-1)*Be]
+        Hx_row = [Hx_row mat_pow(A, r-c)*B]
+        H_row = [H_row Ce*mat_pow(A,r-c-1)*B]
     end
     Hx = [Hx ; Hx_row]
     H = [H ; H_row]
-    Px = [Px ; Ae^r]   
-    P = [P ; Ce*mat_pow(Ae,r-1)]
+    Px = [Px ; A^r]   
+    P = [P ; Ce*mat_pow(A,r-1)]
 end
 
 H = H - diag(diag(H))+eye(length(H))*D %uprava prvku na diagonale
@@ -84,12 +83,12 @@ w0 = 1
 
 
 % predictions
-x(:,1) = [0;0;0;w0] %stavovy vektor rozsireny o referencni hodnotu
+x(:,1) = [0;0;w0;0] %stavovy vektor rozsireny o referencni hodnotu
 y(1) = C*x(:,1)
 e(1) = Ce*x(:,1)
 du(:,1) = K*zeros(nc,1)+M*L*x(:,1)
 
-for k = 1:1000
+for k = 1:100
 %     xk = Px*x(:,k) + Hbx*uk
 %     x(:,k+1) = xk([1 2],1)
 %     yk = P*x(:,k)+Hb*uk
@@ -105,11 +104,11 @@ for k = 1:1000
     
     u(k) = uk(1)
     
-    x(:,k+1) = Ae*x(:,k)+Be*u(k)
+    x(:,k+1) = A*x(:,k)+B*u(k)
     y(k+1) = C*x(:,k+1)
     e(k+1) = Ce*x(:,k+1)
     ek(:,k+1) = P*x(:,k)+Hb*uk
-    du(:,k+1) = K*uk+M*u(k)
+    du(:,k+1) = K*uk+M*L*x(:,k)
 end
 time_v = (0:length(y)-1)*Ts
 figure
